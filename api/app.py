@@ -5,7 +5,9 @@ import time
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
-
+@app.route("/health")
+def health():
+    return {"status": "ok"}
 # ---------------- CONFIG ----------------
 DEVELOPER = "@GoatThunder"
 HEADERS = {
