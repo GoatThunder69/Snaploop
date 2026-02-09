@@ -14,36 +14,50 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(apiUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0"
-      }
+      headers: { "User-Agent": "Mozilla/5.0" }
     });
 
-    const data = await response.json(); // JSON response
+    const raw = await response.json();
 
-    // 🔐 Recursive cleaner
-    const clean = (v) => {
+    // 🔐 hide links + @mentions
+    const sanitize = (v) => {
       if (typeof v === "string") {
         return v
-          .replace(/https?:\/\/\S+/gi, "[hidden]")
-          .replace(/@\S+/g, "[hidden]");
-      }
-      if (Array.isArray(v)) return v.map(clean);
-      if (typeof v === "object" && v !== null) {
-        const o = {};
-        for (const k in v) o[k] = clean(v[k]);
-        return o;
+          .replace(/https?:\/\/\S+/gi, "")
+          .replace(/@\S+/g, "")
+          .trim();
       }
       return v;
     };
 
-    res.setHeader("Content-Type", "application/json");
-    res.status(200).json(clean(data));
+    // 🧠 FIELD MAPPING (safe fallback)
+    const result = {
+      Name: sanitize(
+        raw.name || raw.Name || raw.owner || raw.full_name || "N/A"
+      ),
+      FName: sanitize(
+        raw.father_name || raw.fname || raw.FName || "N/A"
+      ),
+      ID_Number: sanitize(
+        raw.id || raw.id_number || raw.aadhaar || raw.pan || "N/A"
+      ),
+      Alt_Number: sanitize(
+        raw.alt || raw.alt_number || raw.secondary || "N/A"
+      ),
+      Address: sanitize(
+        raw.address || raw.Address || raw.location || "N/A"
+      )
+    };
+
+    res.status(200).json({
+      status: true,
+      data: result
+    });
 
   } catch (err) {
     res.status(500).json({
       status: false,
-      error: "API fetch failed"
+      error: "API fetch or parse failed"
     });
   }
-    }
+        }
