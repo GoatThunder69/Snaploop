@@ -19,45 +19,63 @@ export default async function handler(req, res) {
 
     const raw = await response.json();
 
-    // 🔐 hide links + @mentions
-    const sanitize = (v) => {
-      if (typeof v === "string") {
-        return v
-          .replace(/https?:\/\/\S+/gi, "")
-          .replace(/@\S+/g, "")
-          .trim();
-      }
-      return v;
+    // 🔐 clean text
+    const cleanText = (v) => {
+      if (typeof v !== "string") return v;
+      return v
+        .replace(/https?:\/\/\S+/gi, "")
+        .replace(/@\S+/g, "")
+        .trim();
     };
 
-    // 🧠 FIELD MAPPING (safe fallback)
-    const result = {
-      Name: sanitize(
-        raw.name || raw.Name || raw.owner || raw.full_name || "N/A"
-      ),
-      FName: sanitize(
-        raw.father_name || raw.fname || raw.FName || "N/A"
-      ),
-      ID_Number: sanitize(
-        raw.id || raw.id_number || raw.aadhaar || raw.pan || "N/A"
-      ),
-      Alt_Number: sanitize(
-        raw.alt || raw.alt_number || raw.secondary || "N/A"
-      ),
-      Address: sanitize(
-        raw.address || raw.Address || raw.location || "N/A"
-      )
+    // 🔍 deep search in JSON
+    const found = {};
+
+    const search = (obj) => {
+      if (Array.isArray(obj)) {
+        obj.forEach(search);
+      } else if (obj && typeof obj === "object") {
+        for (const k in obj) {
+          const key = k.toLowerCase();
+          const val = obj[k];
+
+          if (typeof val === "string") {
+            if (!found.Name && key.includes("name") && !key.includes("father")) {
+              found.Name = cleanText(val);
+            }
+            if (!found.FName && (key.includes("father") || key.includes("fname"))) {
+              found.FName = cleanText(val);
+            }
+            if (!found.ID_Number && (key.includes("id") || key.includes("aadhaar") || key.includes("pan"))) {
+              found.ID_Number = cleanText(val);
+            }
+            if (!found.Alt_Number && (key.includes("alt") || key.includes("secondary"))) {
+              found.Alt_Number = cleanText(val);
+            }
+            if (!found.Address && (key.includes("address") || key.includes("location"))) {
+              found.Address = cleanText(val);
+            }
+          }
+
+          if (typeof val === "object") {
+            search(val);
+          }
+        }
+      }
     };
+
+    search(raw);
 
     res.status(200).json({
       status: true,
-      data: result
+      data: found,
+      raw_available: Object.keys(found).length > 0
     });
 
   } catch (err) {
     res.status(500).json({
       status: false,
-      error: "API fetch or parse failed"
+      error: "API fetch failed"
     });
   }
-        }
+}
