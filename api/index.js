@@ -1,55 +1,44 @@
 export default async function handler(req, res) {
-  const term = req.query.term;
+  const mobile = req.query.mobile;
 
-  if (!term) {
+  if (!mobile) {
     return res.status(400).json({
       status: false,
-      message: "term parameter missing"
+      message: "mobile parameter missing"
     });
   }
 
   const apiUrl =
-    "https://api.subhxcosmo.in/api?key=VNIOX&type=mobile&term=" +
-    encodeURIComponent(term);
+    "https://num.proportalxc.workers.dev/?mobile=" +
+    encodeURIComponent(mobile);
 
   try {
-    const r = await fetch(apiUrl, {
+    const response = await fetch(apiUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0"
       }
     });
 
-    let data = await r.json(); // ✅ JSON response
+    const data = await response.json(); // JSON response
 
-    // 🔥 Recursive cleaner (JSON ke andar kahin bhi ho)
-    const cleanData = (obj) => {
-      if (typeof obj === "string") {
-        return obj
-          // hide https/http links
+    // 🔐 Recursive cleaner
+    const clean = (v) => {
+      if (typeof v === "string") {
+        return v
           .replace(/https?:\/\/\S+/gi, "[hidden]")
-          // hide @mentions like @Stark, @anything
           .replace(/@\S+/g, "[hidden]");
       }
-
-      if (Array.isArray(obj)) {
-        return obj.map(cleanData);
+      if (Array.isArray(v)) return v.map(clean);
+      if (typeof v === "object" && v !== null) {
+        const o = {};
+        for (const k in v) o[k] = clean(v[k]);
+        return o;
       }
-
-      if (typeof obj === "object" && obj !== null) {
-        const cleaned = {};
-        for (const key in obj) {
-          cleaned[key] = cleanData(obj[key]);
-        }
-        return cleaned;
-      }
-
-      return obj;
+      return v;
     };
 
-    const cleanedResponse = cleanData(data);
-
     res.setHeader("Content-Type", "application/json");
-    res.status(200).json(cleanedResponse);
+    res.status(200).json(clean(data));
 
   } catch (err) {
     res.status(500).json({
@@ -57,4 +46,4 @@ export default async function handler(req, res) {
       error: "API fetch failed"
     });
   }
-}
+    }
