@@ -14,63 +14,31 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(apiUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" }
-    });
-
-    const raw = await response.json();
-
-    // 🔐 clean text
-    const cleanText = (v) => {
-      if (typeof v !== "string") return v;
-      return v
-        .replace(/https?:\/\/\S+/gi, "")
-        .replace(/@\S+/g, "")
-        .trim();
-    };
-
-    // 🔍 deep search in JSON
-    const found = {};
-
-    const search = (obj) => {
-      if (Array.isArray(obj)) {
-        obj.forEach(search);
-      } else if (obj && typeof obj === "object") {
-        for (const k in obj) {
-          const key = k.toLowerCase();
-          const val = obj[k];
-
-          if (typeof val === "string") {
-            if (!found.Name && key.includes("name") && !key.includes("father")) {
-              found.Name = cleanText(val);
-            }
-            if (!found.FName && (key.includes("father") || key.includes("fname"))) {
-              found.FName = cleanText(val);
-            }
-            if (!found.ID_Number && (key.includes("id") || key.includes("aadhaar") || key.includes("pan"))) {
-              found.ID_Number = cleanText(val);
-            }
-            if (!found.Alt_Number && (key.includes("alt") || key.includes("secondary"))) {
-              found.Alt_Number = cleanText(val);
-            }
-            if (!found.Address && (key.includes("address") || key.includes("location"))) {
-              found.Address = cleanText(val);
-            }
-          }
-
-          if (typeof val === "object") {
-            search(val);
-          }
-        }
+      headers: {
+        "User-Agent": "Mozilla/5.0"
       }
+    });
+
+    const data = await response.json(); // JSON response
+
+    // 🔐 Recursive cleaner
+    const clean = (v) => {
+      if (typeof v === "string") {
+        return v
+          .replace(/https?:\/\/\S+/gi, "[hidden]")
+          .replace(/@\S+/g, "[hidden]");
+      }
+      if (Array.isArray(v)) return v.map(clean);
+      if (typeof v === "object" && v !== null) {
+        const o = {};
+        for (const k in v) o[k] = clean(v[k]);
+        return o;
+      }
+      return v;
     };
 
-    search(raw);
-
-    res.status(200).json({
-      status: true,
-      data: found,
-      raw_available: Object.keys(found).length > 0
-    });
+    res.setHeader("Content-Type", "application/json");
+    res.status(200).json(clean(data));
 
   } catch (err) {
     res.status(500).json({
