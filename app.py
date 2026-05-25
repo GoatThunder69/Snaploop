@@ -2,25 +2,35 @@ from flask import Flask, request, jsonify
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import os
+import re
 
 app = Flask(__name__)
 
-# Secure API key from Vercel ENV
-ZEPH_KEY = os.getenv("ZEPH_KEY")
+# API key fixed
+ZEPH_KEY = "ZEPH-ZRJD1U"
 
-# Retry + timeout session
+# Retry session
 session = requests.Session()
-
 retry = Retry(
     total=3,
     backoff_factor=1,
     status_forcelist=[500, 502, 503, 504]
 )
-
 adapter = HTTPAdapter(max_retries=retry)
 session.mount("http://", adapter)
 session.mount("https://", adapter)
+
+
+# Remove @usernames from response
+def clean_data(data):
+    if isinstance(data, dict):
+        return {k: clean_data(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [clean_data(i) for i in data]
+    elif isinstance(data, str):
+        # remove @username
+        return re.sub(r'@\w+', '[BLOCKED]', data)
+    return data
 
 
 @app.route("/api/vehicle", methods=["GET"])
@@ -42,23 +52,17 @@ def vehicle():
     data1 = None
     data2 = None
 
-    # API 1
     try:
         r1 = session.get(api1, timeout=15)
-        data1 = r1.json()
+        data1 = clean_data(r1.json())
     except Exception as e:
-        data1 = {
-            "error": str(e)
-        }
+        data1 = {"error": str(e)}
 
-    # API 2
     try:
         r2 = session.get(api2, timeout=15)
-        data2 = r2.json()
+        data2 = clean_data(r2.json())
     except Exception as e:
-        data2 = {
-            "error": str(e)
-        }
+        data2 = {"error": str(e)}
 
     return jsonify({
         "success": True,
