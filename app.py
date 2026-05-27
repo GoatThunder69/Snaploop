@@ -1,20 +1,25 @@
 from flask import Flask, request, jsonify
 import requests
 import re
+import os
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from upstash_redis import Redis
-import os
+from redis import Redis
 
 app = Flask(__name__)
 
+# API KEY
 ZEPH_KEY = "ZEPH-ZRJD1U"
 
-# Vercel KV / Redis
-redis = Redis.from_env()
+# Redis connection
+redis = Redis.from_url(
+    os.getenv("REDIS_URL"),
+    decode_responses=True
+)
 
 # Session + Retry
 session = requests.Session()
+
 retry = Retry(
     total=3,
     backoff_factor=1,
@@ -26,7 +31,7 @@ session.mount("http://", adapter)
 session.mount("https://", adapter)
 
 
-# -------- CLEAN --------
+# -------- CLEAN @USERNAME --------
 def clean_data(data):
 
     if isinstance(data, dict):
@@ -41,22 +46,34 @@ def clean_data(data):
     return data
 
 
-# -------- STATS --------
+# -------- STATS UPDATE --------
 def update_stats(ip):
 
     redis.incr("total_hits")
     redis.set("last_hit_ip", ip)
 
-    redis.hincrby("ip_hits", ip, 1)
+    redis.hincrby(
+        "ip_hits",
+        ip,
+        1
+    )
 
 
+# -------- STATS API --------
 @app.route("/api/stats", methods=["GET"])
 def stats():
 
-    total_hits = int(redis.get("total_hits") or 0)
-    last_hit_ip = redis.get("last_hit_ip") or ""
+    total_hits = int(
+        redis.get("total_hits") or 0
+    )
 
-    ip_hits = redis.hgetall("ip_hits") or {}
+    last_hit_ip = (
+        redis.get("last_hit_ip") or ""
+    )
+
+    ip_hits = (
+        redis.hgetall("ip_hits") or {}
+    )
 
     top_ips = dict(
         sorted(
@@ -75,7 +92,7 @@ def stats():
     })
 
 
-# -------- VEHICLE --------
+# -------- VEHICLE API --------
 @app.route("/api/vehicle", methods=["GET"])
 def vehicle():
 
@@ -87,8 +104,12 @@ def vehicle():
             "error": "number parameter missing"
         }), 400
 
-    number = number.upper().replace(" ", "")
+    number = (
+        number.upper()
+        .replace(" ", "")
+    )
 
+    # Real IP
     ip = request.headers.get(
         "x-forwarded-for",
         request.remote_addr
@@ -97,11 +118,17 @@ def vehicle():
     if "," in ip:
         ip = ip.split(",")[0].strip()
 
-    update_stats(ip)
+    # Update count
+    try:
+        update_stats(ip)
+    except:
+        pass
 
     api1 = (
         f"https://www.zephrexdigital.site/api?"
-        f"key={ZEPH_KEY}&type=VNUM&term={number}"
+        f"key={ZEPH_KEY}"
+        f"&type=VNUM"
+        f"&term={number}"
     )
 
     api2 = (
@@ -111,26 +138,60 @@ def vehicle():
 
     merged_data = {}
 
+    # API1
     try:
-        r1 = session.get(api1, timeout=15)
-        d1 = clean_data(r1.json())
+        r1 = session.get(
+            api1,
+            timeout=15
+        )
+
+        d1 = clean_data(
+            r1.json()
+        )
 
         if isinstance(d1, dict):
-            if "data" in d1:
-                merged_data.update(d1["data"])
+
+            if (
+                "data" in d1
+                and isinstance(
+                    d1["data"],
+                    dict
+                )
+            ):
+                merged_data.update(
+                    d1["data"]
+                )
+
             else:
                 merged_data.update(d1)
 
     except:
         pass
 
+    # API2
     try:
-        r2 = session.get(api2, timeout=15)
-        d2 = clean_data(r2.json())
+        r2 = session.get(
+            api2,
+            timeout=15
+        )
+
+        d2 = clean_data(
+            r2.json()
+        )
 
         if isinstance(d2, dict):
-            if "data" in d2:
-                merged_data.update(d2["data"])
+
+            if (
+                "data" in d2
+                and isinstance(
+                    d2["data"],
+                    dict
+                )
+            ):
+                merged_data.update(
+                    d2["data"]
+                )
+
             else:
                 merged_data.update(d2)
 
@@ -141,6 +202,13 @@ def vehicle():
         "success": True,
         "regn_no": number,
         "data": merged_data
+    })
+
+
+@app.route("/")
+def home():
+    return jsonify({
+        "status": "online"
     })
 
 
