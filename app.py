@@ -1,15 +1,16 @@
 from flask import Flask, request, jsonify
 import requests
+import json
+import os
+import re
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import re
 
 app = Flask(__name__)
 
-# API key fixed
 ZEPH_KEY = "ZEPH-ZRJD1U"
+STATS_FILE = "stats.json"
 
-# Retry session
 session = requests.Session()
 retry = Retry(
     total=3,
@@ -21,15 +22,42 @@ session.mount("http://", adapter)
 session.mount("https://", adapter)
 
 
-# Remove @usernames from response
+# ---- Stats ----
+def load_stats():
+    if not os.path.exists(STATS_FILE):
+        return {
+            "total_hits": 0,
+            "last_hit_ip": "",
+            "ip_hits": {}
+        }
+    with open(STATS_FILE, "r") as f:
+        return json.load(f)
+
+def save_stats(stats):
+    with open(STATS_FILE, "w") as f:
+        json.dump(stats, f, indent=2)
+
+def update_stats(ip):
+    stats = load_stats()
+
+    stats["total_hits"] += 1
+    stats["last_hit_ip"] = ip
+
+    if ip not in stats["ip_hits"]:
+        stats["ip_hits"][ip] = 0
+
+    stats["ip_hits"][ip] += 1
+    save_stats(stats)
+
+
+# ---- Remove @usernames ----
 def clean_data(data):
     if isinstance(data, dict):
         return {k: clean_data(v) for k, v in data.items()}
     elif isinstance(data, list):
         return [clean_data(i) for i in data]
     elif isinstance(data, str):
-        # remove @username
-        return re.sub(r'@\w+', '[BLOCKED]', data)
+        return re.sub(r'@\S+', '', data)
     return data
 
 
@@ -46,29 +74,70 @@ def vehicle():
 
     number = number.upper().replace(" ", "")
 
+    ip = request.headers.get(
+        "x-forwarded-for",
+        request.remote_addr
+    )
+
+    if "," in ip:
+        ip = ip.split(",")[0].strip()
+
+    update_stats(ip)
+
     api1 = f"https://www.zephrexdigital.site/api?key={ZEPH_KEY}&type=VNUM&term={number}"
     api2 = f"https://vehicle-infox.profilework239.workers.dev/?number={number}"
 
-    data1 = None
-    data2 = None
+    data = {}
 
     try:
         r1 = session.get(api1, timeout=15)
-        data1 = clean_data(r1.json())
-    except Exception as e:
-        data1 = {"error": str(e)}
+        d1 = clean_data(r1.json())
+
+        if isinstance(d1, dict):
+            data.update(d1)
+
+    except:
+        pass
 
     try:
         r2 = session.get(api2, timeout=15)
-        data2 = clean_data(r2.json())
-    except Exception as e:
-        data2 = {"error": str(e)}
+        d2 = clean_data(r2.json())
+
+        if isinstance(d2, dict):
+            if "data" in d2 and isinstance(d2["data"], dict):
+                data.update(d2["data"])
+            else:
+                data.update(d2)
+
+    except:
+        pass
 
     return jsonify({
         "success": True,
-        "vehicle_number": number,
-        "source1": data1,
-        "source2": data2
+        "regn_no": number,
+        "data": data
+    })
+
+
+@app.route("/api/stats", methods=["GET"])
+def stats():
+
+    stats = load_stats()
+
+    top_ips = dict(
+        sorted(
+            stats["ip_hits"].items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:10]
+    )
+
+    return jsonify({
+        "total_hits": stats["total_hits"],
+        "unique_ips": len(stats["ip_hits"]),
+        "last_hit_ip": stats["last_hit_ip"],
+        "top_ips": top_ips,
+        "all_ip_hits": stats["ip_hits"]
     })
 
 
