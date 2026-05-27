@@ -8,10 +8,9 @@ from redis import Redis
 
 app = Flask(__name__)
 
-# API KEY
 ZEPH_KEY = "ZEPH-ZRJD1U"
 
-# Redis connection
+# Redis
 redis = Redis.from_url(
     os.getenv("REDIS_URL"),
     decode_responses=True
@@ -31,7 +30,7 @@ session.mount("http://", adapter)
 session.mount("https://", adapter)
 
 
-# -------- CLEAN @USERNAME --------
+# -------- CLEAN --------
 def clean_data(data):
 
     if isinstance(data, dict):
@@ -46,7 +45,7 @@ def clean_data(data):
     return data
 
 
-# -------- STATS UPDATE --------
+# -------- STATS --------
 def update_stats(ip):
 
     redis.incr("total_hits")
@@ -59,7 +58,6 @@ def update_stats(ip):
     )
 
 
-# -------- STATS API --------
 @app.route("/api/stats", methods=["GET"])
 def stats():
 
@@ -92,7 +90,7 @@ def stats():
     })
 
 
-# -------- VEHICLE API --------
+# -------- VEHICLE --------
 @app.route("/api/vehicle", methods=["GET"])
 def vehicle():
 
@@ -109,7 +107,7 @@ def vehicle():
         .replace(" ", "")
     )
 
-    # Real IP
+    # IP
     ip = request.headers.get(
         "x-forwarded-for",
         request.remote_addr
@@ -118,12 +116,27 @@ def vehicle():
     if "," in ip:
         ip = ip.split(",")[0].strip()
 
-    # Update count
+    # Stats update
     try:
         update_stats(ip)
     except:
         pass
 
+    # Cache
+    cache_key = f"vehicle:{number}"
+
+    try:
+        import json
+        cached = redis.get(cache_key)
+
+        if cached:
+            return jsonify(
+                json.loads(cached)
+            )
+    except:
+        pass
+
+    # API 1 - Zephrexx
     api1 = (
         f"https://www.zephrexdigital.site/api?"
         f"key={ZEPH_KEY}"
@@ -131,14 +144,18 @@ def vehicle():
         f"&term={number}"
     )
 
+    # API 2 - Salaar
     api2 = (
-        f"https://vehicle-infox.profilework239.workers.dev/"
-        f"?number={number}"
+        f"https://salaar.ashupanel.online/"
+        f"api/numapi.php"
+        f"?action=api"
+        f"&key=aura"
+        f"&number={number}"
     )
 
     merged_data = {}
 
-    # API1
+    # Zephrexx
     try:
         r1 = session.get(
             api1,
@@ -152,8 +169,8 @@ def vehicle():
         if isinstance(d1, dict):
 
             if (
-                "data" in d1
-                and isinstance(
+                "data" in d1 and
+                isinstance(
                     d1["data"],
                     dict
                 )
@@ -161,14 +178,13 @@ def vehicle():
                 merged_data.update(
                     d1["data"]
                 )
-
             else:
                 merged_data.update(d1)
 
     except:
         pass
 
-    # API2
+    # Salaar
     try:
         r2 = session.get(
             api2,
@@ -182,8 +198,8 @@ def vehicle():
         if isinstance(d2, dict):
 
             if (
-                "data" in d2
-                and isinstance(
+                "data" in d2 and
+                isinstance(
                     d2["data"],
                     dict
                 )
@@ -191,18 +207,30 @@ def vehicle():
                 merged_data.update(
                     d2["data"]
                 )
-
             else:
                 merged_data.update(d2)
 
     except:
         pass
 
-    return jsonify({
+    response_data = {
         "success": True,
         "regn_no": number,
         "data": merged_data
-    })
+    }
+
+    # Cache 1 hour
+    try:
+        import json
+        redis.setex(
+            cache_key,
+            3600,
+            json.dumps(response_data)
+        )
+    except:
+        pass
+
+    return jsonify(response_data)
 
 
 @app.route("/")
