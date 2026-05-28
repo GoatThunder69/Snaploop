@@ -8,8 +8,6 @@ from redis import Redis
 
 app = Flask(__name__)
 
-ZEPH_KEY = "ZEPH-ZRJD1U"
-
 # Redis
 redis = Redis.from_url(
     os.getenv("REDIS_URL"),
@@ -107,7 +105,6 @@ def vehicle():
         .replace(" ", "")
     )
 
-    # IP
     ip = request.headers.get(
         "x-forwarded-for",
         request.remote_addr
@@ -116,13 +113,11 @@ def vehicle():
     if "," in ip:
         ip = ip.split(",")[0].strip()
 
-    # Stats update
     try:
         update_stats(ip)
     except:
         pass
 
-    # Cache
     cache_key = f"vehicle:{number}"
 
     try:
@@ -136,15 +131,13 @@ def vehicle():
     except:
         pass
 
-    # API 1 - Zephrexx
+    # API1 NEW
     api1 = (
-        f"https://www.zephrexdigital.site/api?"
-        f"key={ZEPH_KEY}"
-        f"&type=VNUM"
-        f"&term={number}"
+        f"http://187.127.154.84/"
+        f"lookup?plate={number}"
     )
 
-    # API 2 - Salaar
+    # API2 Salaar
     api2 = (
         f"https://salaar.ashupanel.online/"
         f"api/numapi.php"
@@ -155,7 +148,7 @@ def vehicle():
 
     merged_data = {}
 
-    # Zephrexx
+    # API1
     try:
         r1 = session.get(
             api1,
@@ -184,7 +177,7 @@ def vehicle():
     except:
         pass
 
-    # Salaar
+    # API2
     try:
         r2 = session.get(
             api2,
@@ -219,7 +212,6 @@ def vehicle():
         "data": merged_data
     }
 
-    # Cache 1 hour
     try:
         import json
         redis.setex(
