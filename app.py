@@ -132,18 +132,16 @@ def vehicle():
         pass
 
     # API1 NEW
-    api1 = (
-        f"http://187.127.154.84/"
-        f"lookup?plate={number}"
-    )
+    # API1
+api1 = (
+    f"https://chassis-two.vercel.app/"
+    f"api/surepass?plate={number}"
+)
 
-    # API2 Salaar
-    api2 = (
-        f"https://salaar.ashupanel.online/"
-        f"api/numapi.php"
-        f"?action=api"
-        f"&key=aura"
-        f"&number={number}"
+# API2
+api2 = (
+    f"http://144.24.153.5:5003/"
+    f"api/mobile?rc={number}"
     )
 
     merged_data = {}
