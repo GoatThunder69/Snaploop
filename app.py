@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import requests
 import re
 import os
+import json
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from redis import Redis
@@ -105,6 +106,7 @@ def vehicle():
         .replace(" ", "")
     )
 
+    # IP
     ip = request.headers.get(
         "x-forwarded-for",
         request.remote_addr
@@ -113,15 +115,16 @@ def vehicle():
     if "," in ip:
         ip = ip.split(",")[0].strip()
 
+    # Stats safe
     try:
         update_stats(ip)
     except:
         pass
 
-    cache_key = f"vehicle:{number}"
+    # NEW CACHE KEY
+    cache_key = f"vehicle:v2:{number}"
 
     try:
-        import json
         cached = redis.get(cache_key)
 
         if cached:
@@ -131,17 +134,16 @@ def vehicle():
     except:
         pass
 
-    # API1 NEW
     # API1
-api1 = (
-    f"https://chassis-two.vercel.app/"
-    f"api/surepass?plate={number}"
-)
+    api1 = (
+        f"https://chassis-two.vercel.app/"
+        f"api/surepass?plate={number}"
+    )
 
-# API2
-api2 = (
-    f"http://144.24.153.5:5003/"
-    f"api/mobile?rc={number}"
+    # API2
+    api2 = (
+        f"http://144.24.153.5:5003/"
+        f"api/mobile?rc={number}"
     )
 
     merged_data = {}
@@ -210,8 +212,8 @@ api2 = (
         "data": merged_data
     }
 
+    # Cache 1 hour
     try:
-        import json
         redis.setex(
             cache_key,
             3600,
