@@ -35,9 +35,9 @@ REMOVE_KEYS = {
     "developer_by",
     "credit",
     "credits",
-    "buy by",
+    "req_total",
     "@",
-    "total left",
+    "req_total",
     "total_left",
     "left"
 }
