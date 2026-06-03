@@ -154,12 +154,11 @@ def vehicle():
 
     # API1
     api1 = (
-        f"https://rootx-osint.in/"
-        f"?type=v_info"
-        f"&key=amir_bijli"
-        f"&query={number}"
-    )
-
+    f"https://rootx-osint.in/"
+    f"?type=v_info2"
+    f"&key=amir_bijli"
+    f"&query={number}"
+)
     # API2
     api2 = (
         f"https://rootx-osint.in/"
