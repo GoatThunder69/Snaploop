@@ -15,7 +15,7 @@ redis = Redis.from_url(
     decode_responses=True
 )
 
-# Session + Retry
+# Session
 session = requests.Session()
 
 retry = Retry(
@@ -30,10 +30,34 @@ session.mount("https://", adapter)
 
 
 # -------- CLEAN --------
+REMOVE_KEYS = {
+    "developer",
+    "developer_by",
+    "credit",
+    "credits",
+    "buy by",
+    "@",
+    "total left",
+    "total_left",
+    "left"
+}
+
 def clean_data(data):
 
     if isinstance(data, dict):
-        return {k: clean_data(v) for k, v in data.items()}
+
+        cleaned = {}
+
+        for k, v in data.items():
+
+            key_lower = str(k).lower().strip()
+
+            if key_lower in REMOVE_KEYS:
+                continue
+
+            cleaned[k] = clean_data(v)
+
+        return cleaned
 
     elif isinstance(data, list):
         return [clean_data(i) for i in data]
@@ -49,12 +73,7 @@ def update_stats(ip):
 
     redis.incr("total_hits")
     redis.set("last_hit_ip", ip)
-
-    redis.hincrby(
-        "ip_hits",
-        ip,
-        1
-    )
+    redis.hincrby("ip_hits", ip, 1)
 
 
 @app.route("/api/stats", methods=["GET"])
@@ -106,7 +125,6 @@ def vehicle():
         .replace(" ", "")
     )
 
-    # IP
     ip = request.headers.get(
         "x-forwarded-for",
         request.remote_addr
@@ -115,13 +133,13 @@ def vehicle():
     if "," in ip:
         ip = ip.split(",")[0].strip()
 
-    # Stats safe
+    # Stats same safe
     try:
         update_stats(ip)
     except:
         pass
 
-    # NEW CACHE KEY
+    # Cache same
     cache_key = f"vehicle:v2:{number}"
 
     try:
@@ -136,14 +154,18 @@ def vehicle():
 
     # API1
     api1 = (
-        f"https://chassis-two.vercel.app/"
-        f"api/surepass?plate={number}"
+        f"https://rootx-osint.in/"
+        f"?type=v_info"
+        f"&key=amir_bijli"
+        f"&query={number}"
     )
 
     # API2
     api2 = (
-        f"http://144.24.153.5:5003/"
-        f"api/mobile?rc={number}"
+        f"https://rootx-osint.in/"
+        f"?type=v_num"
+        f"&key=amir_bijli"
+        f"&query={number}"
     )
 
     merged_data = {}
@@ -163,10 +185,7 @@ def vehicle():
 
             if (
                 "data" in d1 and
-                isinstance(
-                    d1["data"],
-                    dict
-                )
+                isinstance(d1["data"], dict)
             ):
                 merged_data.update(
                     d1["data"]
@@ -192,10 +211,7 @@ def vehicle():
 
             if (
                 "data" in d2 and
-                isinstance(
-                    d2["data"],
-                    dict
-                )
+                isinstance(d2["data"], dict)
             ):
                 merged_data.update(
                     d2["data"]
@@ -212,7 +228,7 @@ def vehicle():
         "data": merged_data
     }
 
-    # Cache 1 hour
+    # Cache 3600 same
     try:
         redis.setex(
             cache_key,
