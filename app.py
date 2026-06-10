@@ -152,19 +152,16 @@ def vehicle():
     except:
         pass
 
-    # API1
-    api1 = (
-    f"https://rootx-osint.in/"
-    f"?type=v_info2"
-    f"&key=amir_bijli"
-    f"&query={number}"
+    # # API1
+api1 = (
+    f"https://v2iop-panel.vercel.app/api/mera"
+    f"?query={number}"
 )
-    # API2
-    api2 = (
-        f"https://rootx-osint.in/"
-        f"?type=v_num"
-        f"&key=amir_bijli"
-        f"&query={number}"
+
+# API2
+api2 = (
+    f"https://v2iop-panel.vercel.app/api/mera2"
+    f"?query={number}"
     )
 
     merged_data = {}
